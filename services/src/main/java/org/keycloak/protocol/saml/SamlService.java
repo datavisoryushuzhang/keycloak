@@ -294,21 +294,27 @@ public class SamlService extends AuthorizationEndpointBase {
             String bindingType = getBindingType(requestAbstractType);
             if (samlClient.forcePostBinding())
                 bindingType = SamlProtocol.SAML_POST_BINDING;
-            String redirect;
-            URI redirectUri = requestAbstractType.getAssertionConsumerServiceURL();
-            if (redirectUri != null && ! "null".equals(redirectUri.toString())) { // "null" is for testing purposes
-                redirect = RedirectUtils.verifyRedirectUri(session.getContext().getUri(), redirectUri.toString(), realm, client);
-            } else {
-                if (bindingType.equals(SamlProtocol.SAML_POST_BINDING)) {
-                    redirect = client.getAttribute(SamlProtocol.SAML_ASSERTION_CONSUMER_URL_POST_ATTRIBUTE);
-                } else {
-                    redirect = client.getAttribute(SamlProtocol.SAML_ASSERTION_CONSUMER_URL_REDIRECT_ATTRIBUTE);
-                }
-                if (redirect == null) {
-                    redirect = client.getManagementUrl();
-                }
 
-            }
+            // use the ACS url in client config first if it also set in saml request
+            // this will be useful when the SP is behind a reverse proxy or use a LB
+            String redirect = null;
+            URI redirectUri = requestAbstractType.getAssertionConsumerServiceURL();
+            if (bindingType.equals(SamlProtocol.SAML_POST_BINDING)
+                    && client.getAttribute(SamlProtocol.SAML_ASSERTION_CONSUMER_URL_POST_ATTRIBUTE)
+                    != null) {
+                redirect = client
+                        .getAttribute(SamlProtocol.SAML_ASSERTION_CONSUMER_URL_POST_ATTRIBUTE);
+            } else if (bindingType.equals(SamlProtocol.SAML_REDIRECT_BINDING) &&
+                    client.getAttribute(SamlProtocol.SAML_ASSERTION_CONSUMER_URL_REDIRECT_ATTRIBUTE)
+                            != null) {
+                redirect = client
+                        .getAttribute(SamlProtocol.SAML_ASSERTION_CONSUMER_URL_REDIRECT_ATTRIBUTE);
+            } else if (redirectUri != null && !"null"
+                    .equals(redirectUri.toString())) { // "null" is for testing purposes
+                redirect = RedirectUtils
+                        .verifyRedirectUri(session.getContext().getUri(), redirectUri.toString(),
+                                realm, client);
+            } 
 
             if (redirect == null) {
                 event.error(Errors.INVALID_REDIRECT_URI);
